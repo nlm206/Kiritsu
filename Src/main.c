@@ -43,6 +43,7 @@
 /* USER CODE BEGIN Includes */
 #include <string.h> // strlen
 #include <stdio.h>  // sprintf
+#include <math.h>   // sin\cos
 /* USER CODE END Includes */
 
 /* Private variables ---------------------------------------------------------*/
@@ -71,55 +72,71 @@ uint16_t Read_SSI_Pinout(uint8_t channel);
 
 /* USER CODE END 0 */
 
-int main(void)
-{
+int main(void) {
 
-  /* USER CODE BEGIN 1 */
-  float angle = 0;
-  /* USER CODE END 1 */
+	/* USER CODE BEGIN 1 */
 
-  /* MCU Configuration----------------------------------------------------------*/
+	/* USER CODE END 1 */
 
-  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
-  HAL_Init();
+	/* MCU Configuration----------------------------------------------------------*/
 
-  /* USER CODE BEGIN Init */
+	/* Reset of all peripherals, Initializes the Flash interface and the Systick. */
+	HAL_Init();
 
-  /* USER CODE END Init */
+	/* USER CODE BEGIN Init */
 
-  /* Configure the system clock */
-  SystemClock_Config();
+	/* USER CODE END Init */
 
-  /* USER CODE BEGIN SysInit */
+	/* Configure the system clock */
+	SystemClock_Config();
 
-  /* USER CODE END SysInit */
+	/* USER CODE BEGIN SysInit */
 
-  /* Initialize all configured peripherals */
-  MX_GPIO_Init();
-  MX_USART3_UART_Init();
-  MX_USART6_UART_Init();
+	/* USER CODE END SysInit */
 
-  /* USER CODE BEGIN 2 */
+	/* Initialize all configured peripherals */
+	MX_GPIO_Init();
+	MX_USART3_UART_Init();
+	MX_USART6_UART_Init();
 
-  /* USER CODE END 2 */
+	/* USER CODE BEGIN 2 */
 
-  /* Infinite loop */
-  /* USER CODE BEGIN WHILE */
-  while (1)
-  {
-  /* USER CODE END WHILE */
+	/* USER CODE END 2 */
 
-  /* USER CODE BEGIN 3 */
-    static int index = 1;
-    uint16_t data = Read_SSI_Pinout(0);
-    angle = 100 * data * 360.0f / MAX_VALUE;
-    sprintf(buffer, "data=%d~anglex100=%d..\n", data, (int)angle);
-    HAL_UART_Transmit(&huart3, (uint8_t *)buffer, strlen(buffer), 5000);
+	/* Infinite loop */
+	/* USER CODE BEGIN WHILE */
+	while (1) {
+		/* USER CODE END WHILE */
 
-    HAL_GPIO_TogglePin(LD3_GPIO_Port, LD3_Pin);
-    HAL_Delay(500);
-  }
-  /* USER CODE END 3 */
+		/* USER CODE BEGIN 3 */
+		//float angle = 0;
+		//uint16_t data = Read_SSI_Pinout(0);
+		//angle = 100 * data * 360.0f / MAX_VALUE;
+		//sprintf(buffer, "data=%d~anglex100=%d..\n", data, (int) angle);
+		//HAL_UART_Transmit(&huart3, (uint8_t *) buffer, strlen(buffer), 5000);
+		static int i = 1;
+		i++;
+		float y = 2 * sin(2 * i);
+		int32_t s_y = (int32_t) (y * 1000);
+		uint8_t crc = 0xFF, data[5];
+		data[0] = (uint8_t) (s_y >> 24);  // msb
+		data[1] = (uint8_t) (0xFF & (uint8_t) (s_y >> 16));
+		data[2] = (uint8_t) (0xFF & (uint8_t) (s_y >> 8));
+		data[3] = (uint8_t) (0xFF & s_y); // lsb
+		for (int j = 0; j < 4; j++) {
+			crc = crc ^ data[j];
+		}
+		data[4] = crc;
+
+		sprintf(buffer, "%d, %d,%d,%d,%d,(crc=%d)\n", (int)s_y, data[0], data[1],
+				data[2], data[3], data[4]);
+		HAL_UART_Transmit(&huart3, (uint8_t*) buffer, strlen(buffer), 5000);
+		HAL_UART_Transmit(&huart6, (uint8_t*) data, 5, 5000);
+
+		HAL_GPIO_TogglePin(LD3_GPIO_Port, LD3_Pin);
+		HAL_Delay(1500);
+	}
+	/* USER CODE END 3 */
 
 }
 
