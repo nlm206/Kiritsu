@@ -49,10 +49,6 @@
 
 #define USER_Btn_Pin GPIO_PIN_13
 #define USER_Btn_GPIO_Port GPIOC
-#define CLK_CH2_Pin GPIO_PIN_7
-#define CLK_CH2_GPIO_Port GPIOF
-#define DATA_CH2_Pin GPIO_PIN_9
-#define DATA_CH2_GPIO_Port GPIOF
 #define MCO_Pin GPIO_PIN_0
 #define MCO_GPIO_Port GPIOH
 #define RMII_MDC_Pin GPIO_PIN_1
@@ -67,8 +63,8 @@
 #define RMII_RXD0_GPIO_Port GPIOC
 #define RMII_RXD1_Pin GPIO_PIN_5
 #define RMII_RXD1_GPIO_Port GPIOC
-#define CLK_CH3_Pin GPIO_PIN_0
-#define CLK_CH3_GPIO_Port GPIOG
+#define ENC_RESET_3_Pin GPIO_PIN_0
+#define ENC_RESET_3_GPIO_Port GPIOG
 #define DATA_CH3_Pin GPIO_PIN_1
 #define DATA_CH3_GPIO_Port GPIOG
 #define RMII_TXD1_Pin GPIO_PIN_13
@@ -97,10 +93,10 @@
 #define TMS_GPIO_Port GPIOA
 #define TCK_Pin GPIO_PIN_14
 #define TCK_GPIO_Port GPIOA
-#define CLK_CH1_Pin GPIO_PIN_0
-#define CLK_CH1_GPIO_Port GPIOD
-#define DATA_CH1_Pin GPIO_PIN_1
-#define DATA_CH1_GPIO_Port GPIOD
+#define ENC_RESET_1_Pin GPIO_PIN_0
+#define ENC_RESET_1_GPIO_Port GPIOD
+#define ENC_RESET_2_Pin GPIO_PIN_1
+#define ENC_RESET_2_GPIO_Port GPIOD
 #define RMII_TX_EN_Pin GPIO_PIN_11
 #define RMII_TX_EN_GPIO_Port GPIOG
 #define RMII_TXD0_Pin GPIO_PIN_13
@@ -118,7 +114,21 @@
 /* #define USE_FULL_ASSERT    1U */
 
 /* USER CODE BEGIN Private defines */
-#define MAX_VALUE 4096
+#define MAX_VALUE_12_BIT 				(uint16_t)4096
+#define MAX_VALUE_18_BIT 				(uint32_t)262144
+#define MAX_VALUE_19_BIT 				(uint32_t)524288
+#define MAX_VALUE_20_BIT 				(uint32_t)1048576
+#define MAX_VALUE_21_BIT 				(uint32_t)2097152
+
+#define Byte_Extract(num) \
+	((num&0x80)?1:0),\
+	((num&0x40)?1:0),\
+	((num&0x20)?1:0),\
+	((num&0x10)?1:0),\
+	((num&0x08)?1:0),\
+	((num&0x04)?1:0),\
+	((num&0x02)?1:0),\
+	((num&0x01)?1:0)
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus

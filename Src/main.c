@@ -48,12 +48,16 @@
 
 /* Private variables ---------------------------------------------------------*/
 
+SPI_HandleTypeDef hspi3;
+SPI_HandleTypeDef hspi4;
+SPI_HandleTypeDef hspi5;
+
 UART_HandleTypeDef huart3;
 UART_HandleTypeDef huart6;
 
 /* USER CODE BEGIN PV */
 /* Private variables ---------------------------------------------------------*/
-static char buffer[128];
+static char buffer[1024];
 
 /* USER CODE END PV */
 
@@ -62,59 +66,83 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_USART3_UART_Init(void);
 static void MX_USART6_UART_Init(void);
+static void MX_SPI4_Init(void);
+static void MX_SPI3_Init(void);
+static void MX_SPI5_Init(void);
 
 /* USER CODE BEGIN PFP */
 /* Private function prototypes -----------------------------------------------*/
-uint16_t Read_SSI_Pinout(uint8_t channel);
+uint32_t Read_SSI_Pinout(uint8_t channel, int numBits);
+uint32_t Read_SSI_SPIx(SPI_HandleTypeDef *hspi);
 /* USER CODE END PFP */
 
 /* USER CODE BEGIN 0 */
 
 /* USER CODE END 0 */
 
-int main(void) {
+int main(void)
+{
 
-	/* USER CODE BEGIN 1 */
+  /* USER CODE BEGIN 1 */
 
-	/* USER CODE END 1 */
+  /* USER CODE END 1 */
 
-	/* MCU Configuration----------------------------------------------------------*/
+  /* MCU Configuration----------------------------------------------------------*/
 
-	/* Reset of all peripherals, Initializes the Flash interface and the Systick. */
-	HAL_Init();
+  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
+  HAL_Init();
 
-	/* USER CODE BEGIN Init */
+  /* USER CODE BEGIN Init */
 
-	/* USER CODE END Init */
+  /* USER CODE END Init */
 
-	/* Configure the system clock */
-	SystemClock_Config();
+  /* Configure the system clock */
+  SystemClock_Config();
 
-	/* USER CODE BEGIN SysInit */
+  /* USER CODE BEGIN SysInit */
 
-	/* USER CODE END SysInit */
+  /* USER CODE END SysInit */
 
-	/* Initialize all configured peripherals */
-	MX_GPIO_Init();
-	MX_USART3_UART_Init();
-	MX_USART6_UART_Init();
+  /* Initialize all configured peripherals */
+  MX_GPIO_Init();
+  MX_USART3_UART_Init();
+  MX_USART6_UART_Init();
+  MX_SPI4_Init();
+  MX_SPI3_Init();
+  MX_SPI5_Init();
 
-	/* USER CODE BEGIN 2 */
+  /* USER CODE BEGIN 2 */
 
-	/* USER CODE END 2 */
+  /* USER CODE END 2 */
 
-	/* Infinite loop */
-	/* USER CODE BEGIN WHILE */
+  /* Infinite loop */
+  /* USER CODE BEGIN WHILE */
 	while (1) {
-		/* USER CODE END WHILE */
+  /* USER CODE END WHILE */
 
-		/* USER CODE BEGIN 3 */
-		//float angle = 0;
-		//uint16_t data = Read_SSI_Pinout(0);
-		//angle = 100 * data * 360.0f / MAX_VALUE;
-		//sprintf(buffer, "data=%d~anglex100=%d..\n", data, (int) angle);
-		//HAL_UART_Transmit(&huart3, (uint8_t *) buffer, strlen(buffer), 5000);
-		static int i = 1;
+  /* USER CODE BEGIN 3 */
+		uint8_t bytes[4];
+		uint32_t data = 0, value = 0, angle = 0;
+
+		//const int numBits = 20;
+		//data = Read_SSI_Pinout(0, numBits);
+
+		data = Read_SSI_SPIx(&hspi4);
+
+		value = data & (uint32_t)0x007FFFF0;
+		value = value / 16; // last bit is ERROR bit
+		angle = (uint32_t)(value * 360.0 / MAX_VALUE_19_BIT);
+
+		//angle = data * 360.0f / MAX_VALUE;
+		bytes[0] = (uint8_t)(data >> 24); // msb
+		bytes[1] = (uint8_t)(data >> 16);
+		bytes[2] = (uint8_t)(data >> 8);
+		bytes[3] = (uint8_t)(data & 0xFF); // lsb
+		//sprintf(buffer, "data=%d\n", (int)data);
+		sprintf(buffer, "(%ld(deg)~%ld)=%d%d%d%d%d%d%d%d, %d%d%d%d%d%d%d%d, %d%d%d%d%d%d%d%d\n",
+				angle, value, Byte_Extract(bytes[1]), Byte_Extract(bytes[2]), Byte_Extract(bytes[3]));
+		HAL_UART_Transmit(&huart3, (uint8_t *) buffer, strlen(buffer), 5000);
+		/*static int i = 1;
 		i++;
 		float y = 2 * sin(2 * i);
 		int32_t s_y = (int32_t) (y * 1000);
@@ -132,11 +160,11 @@ int main(void) {
 				data[2], data[3], data[4]);
 		HAL_UART_Transmit(&huart3, (uint8_t*) buffer, strlen(buffer), 5000);
 		HAL_UART_Transmit(&huart6, (uint8_t*) data, 5, 5000);
-
+		*/
 		HAL_GPIO_TogglePin(LD3_GPIO_Port, LD3_Pin);
 		HAL_Delay(1500);
 	}
-	/* USER CODE END 3 */
+  /* USER CODE END 3 */
 
 }
 
@@ -198,6 +226,84 @@ void SystemClock_Config(void)
 
   /* SysTick_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(SysTick_IRQn, 0, 0);
+}
+
+/* SPI3 init function */
+static void MX_SPI3_Init(void)
+{
+
+  /* SPI3 parameter configuration*/
+  hspi3.Instance = SPI3;
+  hspi3.Init.Mode = SPI_MODE_MASTER;
+  hspi3.Init.Direction = SPI_DIRECTION_2LINES;
+  hspi3.Init.DataSize = SPI_DATASIZE_8BIT;
+  hspi3.Init.CLKPolarity = SPI_POLARITY_HIGH;
+  hspi3.Init.CLKPhase = SPI_PHASE_2EDGE;
+  hspi3.Init.NSS = SPI_NSS_SOFT;
+  hspi3.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_16;
+  hspi3.Init.FirstBit = SPI_FIRSTBIT_MSB;
+  hspi3.Init.TIMode = SPI_TIMODE_DISABLE;
+  hspi3.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
+  hspi3.Init.CRCPolynomial = 7;
+  hspi3.Init.CRCLength = SPI_CRC_LENGTH_DATASIZE;
+  hspi3.Init.NSSPMode = SPI_NSS_PULSE_DISABLE;
+  if (HAL_SPI_Init(&hspi3) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+}
+
+/* SPI4 init function */
+static void MX_SPI4_Init(void)
+{
+
+  /* SPI4 parameter configuration*/
+  hspi4.Instance = SPI4;
+  hspi4.Init.Mode = SPI_MODE_MASTER;
+  hspi4.Init.Direction = SPI_DIRECTION_2LINES;
+  hspi4.Init.DataSize = SPI_DATASIZE_8BIT;
+  hspi4.Init.CLKPolarity = SPI_POLARITY_HIGH;
+  hspi4.Init.CLKPhase = SPI_PHASE_2EDGE;
+  hspi4.Init.NSS = SPI_NSS_SOFT;
+  hspi4.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_16;
+  hspi4.Init.FirstBit = SPI_FIRSTBIT_MSB;
+  hspi4.Init.TIMode = SPI_TIMODE_DISABLE;
+  hspi4.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
+  hspi4.Init.CRCPolynomial = 7;
+  hspi4.Init.CRCLength = SPI_CRC_LENGTH_DATASIZE;
+  hspi4.Init.NSSPMode = SPI_NSS_PULSE_DISABLE;
+  if (HAL_SPI_Init(&hspi4) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+}
+
+/* SPI5 init function */
+static void MX_SPI5_Init(void)
+{
+
+  /* SPI5 parameter configuration*/
+  hspi5.Instance = SPI5;
+  hspi5.Init.Mode = SPI_MODE_MASTER;
+  hspi5.Init.Direction = SPI_DIRECTION_2LINES;
+  hspi5.Init.DataSize = SPI_DATASIZE_8BIT;
+  hspi5.Init.CLKPolarity = SPI_POLARITY_HIGH;
+  hspi5.Init.CLKPhase = SPI_PHASE_2EDGE;
+  hspi5.Init.NSS = SPI_NSS_SOFT;
+  hspi5.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_16;
+  hspi5.Init.FirstBit = SPI_FIRSTBIT_MSB;
+  hspi5.Init.TIMode = SPI_TIMODE_DISABLE;
+  hspi5.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
+  hspi5.Init.CRCPolynomial = 7;
+  hspi5.Init.CRCLength = SPI_CRC_LENGTH_DATASIZE;
+  hspi5.Init.NSSPMode = SPI_NSS_PULSE_DISABLE;
+  if (HAL_SPI_Init(&hspi5) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
 }
 
 /* USART3 init function */
@@ -269,6 +375,7 @@ static void MX_GPIO_Init(void)
   GPIO_InitTypeDef GPIO_InitStruct;
 
   /* GPIO Ports Clock Enable */
+  __HAL_RCC_GPIOE_CLK_ENABLE();
   __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOF_CLK_ENABLE();
   __HAL_RCC_GPIOH_CLK_ENABLE();
@@ -278,10 +385,7 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOD_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(CLK_CH2_GPIO_Port, CLK_CH2_Pin, GPIO_PIN_SET);
-
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(CLK_CH3_GPIO_Port, CLK_CH3_Pin, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(ENC_RESET_3_GPIO_Port, ENC_RESET_3_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, LD3_Pin|LD2_Pin, GPIO_PIN_RESET);
@@ -290,26 +394,13 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(USB_PowerSwitchOn_GPIO_Port, USB_PowerSwitchOn_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(CLK_CH1_GPIO_Port, CLK_CH1_Pin, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(GPIOD, ENC_RESET_1_Pin|ENC_RESET_2_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin : USER_Btn_Pin */
   GPIO_InitStruct.Pin = USER_Btn_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(USER_Btn_GPIO_Port, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : CLK_CH2_Pin */
-  GPIO_InitStruct.Pin = CLK_CH2_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(CLK_CH2_GPIO_Port, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : DATA_CH2_Pin */
-  GPIO_InitStruct.Pin = DATA_CH2_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(DATA_CH2_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : RMII_MDC_Pin RMII_RXD0_Pin RMII_RXD1_Pin */
   GPIO_InitStruct.Pin = RMII_MDC_Pin|RMII_RXD0_Pin|RMII_RXD1_Pin;
@@ -327,8 +418,8 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Alternate = GPIO_AF11_ETH;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : CLK_CH3_Pin USB_PowerSwitchOn_Pin */
-  GPIO_InitStruct.Pin = CLK_CH3_Pin|USB_PowerSwitchOn_Pin;
+  /*Configure GPIO pins : ENC_RESET_3_Pin USB_PowerSwitchOn_Pin */
+  GPIO_InitStruct.Pin = ENC_RESET_3_Pin|USB_PowerSwitchOn_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -369,18 +460,12 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(USB_VBUS_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : CLK_CH1_Pin */
-  GPIO_InitStruct.Pin = CLK_CH1_Pin;
+  /*Configure GPIO pins : ENC_RESET_1_Pin ENC_RESET_2_Pin */
+  GPIO_InitStruct.Pin = ENC_RESET_1_Pin|ENC_RESET_2_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(CLK_CH1_GPIO_Port, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : DATA_CH1_Pin */
-  GPIO_InitStruct.Pin = DATA_CH1_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(DATA_CH1_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
   /*Configure GPIO pins : RMII_TX_EN_Pin RMII_TXD0_Pin */
   GPIO_InitStruct.Pin = RMII_TX_EN_Pin|RMII_TXD0_Pin;
@@ -397,28 +482,31 @@ static void MX_GPIO_Init(void)
 // @input: chId - channel ID [0..3)
 // @output: return data
 //
-uint16_t Read_SSI_Pinout(uint8_t chId) {
-	GPIO_TypeDef * CLK_Ports[3] = { CLK_CH1_GPIO_Port, CLK_CH2_GPIO_Port,
-			CLK_CH3_GPIO_Port };
-	uint16_t CLK_Pins[3] = { CLK_CH1_Pin, CLK_CH2_Pin, CLK_CH3_Pin };
+uint32_t Read_SSI_Pinout(uint8_t chId, int numBits) {
+	GPIO_TypeDef * CLK_Ports[] = { ENC_RESET_3_GPIO_Port};
+	uint16_t CLK_Pins[] = { ENC_RESET_3_Pin};
 
-	GPIO_TypeDef* Data_Ports[3] = { DATA_CH1_GPIO_Port, DATA_CH2_GPIO_Port,
-			DATA_CH3_GPIO_Port };
-	uint16_t Data_Pins[3] = { DATA_CH1_Pin, DATA_CH2_Pin, DATA_CH3_Pin };
+	GPIO_TypeDef* Data_Ports[] = { DATA_CH3_GPIO_Port };
+	uint16_t Data_Pins[] = { DATA_CH3_Pin };
 
-	chId = chId % 3;
+	chId = 0;
 
-	uint16_t data = 0;
-	int pin_state;
-	for (int i = 0; i < 12; ++i) {
+	uint32_t data = 0;
+	int pin_state;//, tmp = 0;
+
+	for (int i = 0; i < numBits; ++i) {
 		// falling edge
 		HAL_GPIO_WritePin(CLK_Ports[chId], CLK_Pins[chId], GPIO_PIN_RESET);
+
+		//for (int cct = 0; cct < 500; cct++) { tmp++;}	tmp = 0;
 
 		// left-shift current result
 		data <<= 1;
 
 		// rising edge on clk port
 		HAL_GPIO_WritePin(CLK_Ports[chId], CLK_Pins[chId], GPIO_PIN_SET);
+
+		//for (int cct = 0; cct < 500; cct++) {	tmp++;}	tmp = 0;
 
 		// read the pin state
 		pin_state = HAL_GPIO_ReadPin(Data_Ports[chId], Data_Pins[chId]);
@@ -429,6 +517,25 @@ uint16_t Read_SSI_Pinout(uint8_t chId) {
 		}
 	}
 	return data;
+}
+
+/* Read_SSI_SPIx() Using SPI Interface
+ *
+ * SPI3_CLK = PC_10, SPI3_MISO = PC_11, SPI3_MOSI = PC_12
+ *
+ * SPI4_CLK = PE_2, SPI4_MISO = PE_5, SPI4_MOSI = PE_6
+ *
+ * SPI5_CLK = PF_7, SPI5_MISO = PE_8, SPI5_MOSI = PE_9
+ *
+ * */
+uint32_t Read_SSI_SPIx(SPI_HandleTypeDef *hspi) {
+	uint8_t pData[3] = { 0 }; // dummy data
+	uint32_t data1 = 0;
+	if (HAL_OK == HAL_SPI_TransmitReceive(hspi, pData, pData, 3, 5000)) {
+		data1 = ((uint32_t) pData[0] << 16) | ((uint32_t) pData[1] << 8)
+				| (uint32_t) pData[2];
+	}
+	return data1;
 }
 /* USER CODE END 4 */
 
