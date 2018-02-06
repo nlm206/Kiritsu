@@ -79,6 +79,8 @@
 #define USB_PowerSwitchOn_GPIO_Port GPIOG
 #define USB_OverCurrent_Pin GPIO_PIN_7
 #define USB_OverCurrent_GPIO_Port GPIOG
+#define Enc_Reset_1_Pin GPIO_PIN_9
+#define Enc_Reset_1_GPIO_Port GPIOC
 #define USB_SOF_Pin GPIO_PIN_8
 #define USB_SOF_GPIO_Port GPIOA
 #define USB_VBUS_Pin GPIO_PIN_9
@@ -105,6 +107,10 @@
 #define SW0_GPIO_Port GPIOB
 #define LD2_Pin GPIO_PIN_7
 #define LD2_GPIO_Port GPIOB
+#define Enc_Reset_2_Pin GPIO_PIN_8
+#define Enc_Reset_2_GPIO_Port GPIOB
+#define Enc_Reset_3_Pin GPIO_PIN_9
+#define Enc_Reset_3_GPIO_Port GPIOB
 
 /* ########################## Assert Selection ############################## */
 /**

@@ -112,7 +112,13 @@ int main(void)
   MX_SPI5_Init();
 
   /* USER CODE BEGIN 2 */
-
+  HAL_GPIO_WritePin(Enc_Reset_1_GPIO_Port, Enc_Reset_1_Pin, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(Enc_Reset_2_GPIO_Port, Enc_Reset_2_Pin, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(Enc_Reset_3_GPIO_Port, Enc_Reset_3_Pin, GPIO_PIN_SET);
+  HAL_Delay(1); // ms
+  HAL_GPIO_WritePin(Enc_Reset_1_GPIO_Port, Enc_Reset_1_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(Enc_Reset_2_GPIO_Port, Enc_Reset_2_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(Enc_Reset_3_GPIO_Port, Enc_Reset_3_Pin, GPIO_PIN_RESET);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -123,24 +129,43 @@ int main(void)
   /* USER CODE BEGIN 3 */
 		uint8_t bytes[4];
 		uint32_t data = 0, value = 0, angle = 0;
-
+		uint32_t values[3] = {0};
+	  uint32_t angles[3] = {0}, precision[3] = {0};
 		//const int numBits = 20;
 		//data = Read_SSI_Pinout(0, numBits);
 
-		data = Read_SSI_SPIx(&hspi4);
-
+		data = Read_SSI_SPIx(&hspi3);
 		value = data & (uint32_t)0x007FFFF0;
 		value = value / 16; // last bit is ERROR bit
 		angle = (uint32_t)(value * 360.0 / MAX_VALUE_19_BIT);
+		precision[0] = (uint32_t)(100 * (value * 360.0 / MAX_VALUE_19_BIT - angle));
+		angles[0] = angle; values[0] = value;
 
+		data = Read_SSI_SPIx(&hspi4);
+		value = data & (uint32_t)0x007FFFF0;
+		value = value / 16; // last bit is ERROR bit
+		angle = (uint32_t)(value * 360.0 / MAX_VALUE_19_BIT);
+		precision[1] = (uint32_t)(100 * (value * 360.0 / MAX_VALUE_19_BIT - angle));
+		angles[1] = angle; values[1] = value;
+
+		data = Read_SSI_SPIx(&hspi5);
+		value = data & (uint32_t)0x007FFFF0;
+		value = value / 16; // last bit is ERROR bit
+		angle = (uint32_t)(value * 360.0 / MAX_VALUE_19_BIT);
+		precision[2] = (uint32_t)(100 * (value * 360.0 / MAX_VALUE_19_BIT - angle));
+		angles[2] = angle; values[2] = value;
 		//angle = data * 360.0f / MAX_VALUE;
+
+
+		sprintf(buffer, "{%ld.%ld, %ld.%ld, %ld.%ld}(deg)\n",
+				angles[0], precision[0], angles[1], precision[1], angles[2], precision[2]);
+
 		bytes[0] = (uint8_t)(data >> 24); // msb
 		bytes[1] = (uint8_t)(data >> 16);
 		bytes[2] = (uint8_t)(data >> 8);
 		bytes[3] = (uint8_t)(data & 0xFF); // lsb
-		//sprintf(buffer, "data=%d\n", (int)data);
-		sprintf(buffer, "(%ld(deg)~%ld)=%d%d%d%d%d%d%d%d, %d%d%d%d%d%d%d%d, %d%d%d%d%d%d%d%d\n",
-				angle, value, Byte_Extract(bytes[1]), Byte_Extract(bytes[2]), Byte_Extract(bytes[3]));
+		//sprintf(buffer, "(%ld(deg)~%ld)=%d%d%d%d%d%d%d%d, %d%d%d%d%d%d%d%d, %d%d%d%d%d%d%d%d\n",
+		//		angle, value, Byte_Extract(bytes[1]), Byte_Extract(bytes[2]), Byte_Extract(bytes[3]));
 		HAL_UART_Transmit(&huart3, (uint8_t *) buffer, strlen(buffer), 5000);
 		/*static int i = 1;
 		i++;
@@ -388,13 +413,19 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(ENC_RESET_3_GPIO_Port, ENC_RESET_3_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, LD3_Pin|LD2_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOB, LD3_Pin|LD2_Pin|Enc_Reset_3_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(USB_PowerSwitchOn_GPIO_Port, USB_PowerSwitchOn_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(Enc_Reset_1_GPIO_Port, Enc_Reset_1_Pin, GPIO_PIN_SET);
+
+  /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOD, ENC_RESET_1_Pin|ENC_RESET_2_Pin, GPIO_PIN_SET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(Enc_Reset_2_GPIO_Port, Enc_Reset_2_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin : USER_Btn_Pin */
   GPIO_InitStruct.Pin = USER_Btn_Pin;
@@ -439,12 +470,19 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Alternate = GPIO_AF11_ETH;
   HAL_GPIO_Init(RMII_TXD1_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : LD3_Pin LD2_Pin */
-  GPIO_InitStruct.Pin = LD3_Pin|LD2_Pin;
+  /*Configure GPIO pins : LD3_Pin LD2_Pin Enc_Reset_2_Pin Enc_Reset_3_Pin */
+  GPIO_InitStruct.Pin = LD3_Pin|LD2_Pin|Enc_Reset_2_Pin|Enc_Reset_3_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : Enc_Reset_1_Pin */
+  GPIO_InitStruct.Pin = Enc_Reset_1_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(Enc_Reset_1_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : USB_SOF_Pin USB_ID_Pin USB_DM_Pin USB_DP_Pin */
   GPIO_InitStruct.Pin = USB_SOF_Pin|USB_ID_Pin|USB_DM_Pin|USB_DP_Pin;
