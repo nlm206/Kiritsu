@@ -48,9 +48,9 @@
 
 /* Private variables ---------------------------------------------------------*/
 
-SPI_HandleTypeDef hspi3;
-SPI_HandleTypeDef hspi4;
-SPI_HandleTypeDef hspi5;
+SPI_HandleTypeDef hspi3; // axis 2
+SPI_HandleTypeDef hspi4; // axis 1
+SPI_HandleTypeDef hspi5; // axis 3
 
 UART_HandleTypeDef huart3;
 UART_HandleTypeDef huart6;
@@ -115,10 +115,11 @@ int main(void)
   HAL_GPIO_WritePin(Enc_Reset_1_GPIO_Port, Enc_Reset_1_Pin, GPIO_PIN_SET);
   HAL_GPIO_WritePin(Enc_Reset_2_GPIO_Port, Enc_Reset_2_Pin, GPIO_PIN_SET);
   HAL_GPIO_WritePin(Enc_Reset_3_GPIO_Port, Enc_Reset_3_Pin, GPIO_PIN_SET);
-  HAL_Delay(1); // ms
+  HAL_Delay(10); // ms
   HAL_GPIO_WritePin(Enc_Reset_1_GPIO_Port, Enc_Reset_1_Pin, GPIO_PIN_RESET);
   HAL_GPIO_WritePin(Enc_Reset_2_GPIO_Port, Enc_Reset_2_Pin, GPIO_PIN_RESET);
   HAL_GPIO_WritePin(Enc_Reset_3_GPIO_Port, Enc_Reset_3_Pin, GPIO_PIN_RESET);
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -127,67 +128,81 @@ int main(void)
   /* USER CODE END WHILE */
 
   /* USER CODE BEGIN 3 */
-		uint8_t bytes[4];
-		uint32_t data = 0, value = 0, angle = 0;
-		uint32_t values[3] = {0};
-	  uint32_t angles[3] = {0}, precision[3] = {0};
-		//const int numBits = 20;
-		//data = Read_SSI_Pinout(0, numBits);
+		const uint32_t scale = 1000;
+		const double raw_data_2_deg = scale * 360.0 / MAX_VALUE_19_BIT;
 
-		data = Read_SSI_SPIx(&hspi3);
-		value = data & (uint32_t)0x007FFFF0;
-		value = value / 16; // last bit is ERROR bit
-		angle = (uint32_t)(value * 360.0 / MAX_VALUE_19_BIT);
-		precision[0] = (uint32_t)(100 * (value * 360.0 / MAX_VALUE_19_BIT - angle));
-		angles[0] = angle; values[0] = value;
+	    uint32_t angles[3] = {0};
+
+#ifndef USING_VIRTUAL_ANGLES
+	    uint32_t values[3] = {0};
+	    uint32_t data = 0, value = 0, angle = 0;
+		data = Read_SSI_SPIx(&hspi3);                           // read data from encoder
+		value = data & (uint32_t)0x007FFFF0;                    // decode the data
+		value = value / 16;                                     // last bit is ERROR bit, value >>= 4
+		angle = (uint32_t)(value * raw_data_2_deg);             // angle in deg, \sa scale
+		angles[1] = angle;                                      // store to array
+		values[1] = value;                                      // store to array
 
 		data = Read_SSI_SPIx(&hspi4);
 		value = data & (uint32_t)0x007FFFF0;
-		value = value / 16; // last bit is ERROR bit
-		angle = (uint32_t)(value * 360.0 / MAX_VALUE_19_BIT);
-		precision[1] = (uint32_t)(100 * (value * 360.0 / MAX_VALUE_19_BIT - angle));
-		angles[1] = angle; values[1] = value;
+		value = value / 16;                                     // last bit is ERROR bit, value >>= 4
+		angle = (uint32_t)(value * raw_data_2_deg);
+		angles[0] = angle;
+		values[0] = value;
 
 		data = Read_SSI_SPIx(&hspi5);
 		value = data & (uint32_t)0x007FFFF0;
-		value = value / 16; // last bit is ERROR bit
-		angle = (uint32_t)(value * 360.0 / MAX_VALUE_19_BIT);
-		precision[2] = (uint32_t)(100 * (value * 360.0 / MAX_VALUE_19_BIT - angle));
-		angles[2] = angle; values[2] = value;
-		//angle = data * 360.0f / MAX_VALUE;
+		value = value / 16;                                     // last bit is ERROR bit, value >>= 4
+		angle = (uint32_t)(value * raw_data_2_deg);
+		angles[2] = angle;
+		values[2] = value;
+#else
+		angles[0] = (uint32_t)(10.5 * scale);
+		angles[1] = (uint32_t)(142.9 * scale);
+		angles[2] = (uint32_t)(256.7 * scale);
+#endif
 
+		sprintf(buffer, "{%ld, %ld, %ld}(deg)\n", angles[0], angles[1], angles[2]);
+		HAL_UART_Transmit(&huart3, (uint8_t *) buffer, strlen(buffer), 5000); // send data to PC
 
-		sprintf(buffer, "{%ld.%ld, %ld.%ld, %ld.%ld}(deg)\n",
-				angles[0], precision[0], angles[1], precision[1], angles[2], precision[2]);
+		uint8_t crc = 124;
+		uint8_t	data_bytes[13] = {69, 37, 4, 6, 12, 41, 55, 21, 32, 21, 51, 29, 16};
 
-		bytes[0] = (uint8_t)(data >> 24); // msb
-		bytes[1] = (uint8_t)(data >> 16);
-		bytes[2] = (uint8_t)(data >> 8);
-		bytes[3] = (uint8_t)(data & 0xFF); // lsb
-		//sprintf(buffer, "(%ld(deg)~%ld)=%d%d%d%d%d%d%d%d, %d%d%d%d%d%d%d%d, %d%d%d%d%d%d%d%d\n",
-		//		angle, value, Byte_Extract(bytes[1]), Byte_Extract(bytes[2]), Byte_Extract(bytes[3]));
-		HAL_UART_Transmit(&huart3, (uint8_t *) buffer, strlen(buffer), 5000);
-		/*static int i = 1;
-		i++;
-		float y = 2 * sin(2 * i);
-		int32_t s_y = (int32_t) (y * 1000);
-		uint8_t crc = 0xFF, data[5];
-		data[0] = (uint8_t) (s_y >> 24);  // msb
-		data[1] = (uint8_t) (0xFF & (uint8_t) (s_y >> 16));
-		data[2] = (uint8_t) (0xFF & (uint8_t) (s_y >> 8));
-		data[3] = (uint8_t) (0xFF & s_y); // lsb
-		for (int j = 0; j < 4; j++) {
-			crc = crc ^ data[j];
+		// Encoding first data
+		data_bytes[0] = (uint8_t)((angles[0] >> 24) & 0xFF); // the MSB
+		data_bytes[1] = (uint8_t)((angles[0] >> 16) & 0xFF);
+		data_bytes[2] = (uint8_t)((angles[0] >> 8) & 0xFF);
+		data_bytes[3] = (uint8_t)((angles[0]) & 0xFF);       // the LSB
+
+		// Encoding second data
+		data_bytes[4] = (uint8_t)((angles[1] >> 24) & 0xFF); // the MSB
+		data_bytes[5] = (uint8_t)((angles[1] >> 16) & 0xFF);
+		data_bytes[6] = (uint8_t)((angles[1] >> 8) & 0xFF);
+		data_bytes[7] = (uint8_t)((angles[1]) & 0xFF);       // the LSB
+
+		// Encoding third data
+		data_bytes[8] = (uint8_t)((angles[2] >> 24) & 0xFF); // the MSB
+		data_bytes[9] = (uint8_t)((angles[2] >> 16) & 0xFF);
+		data_bytes[10] = (uint8_t)((angles[2] >> 8) & 0xFF);
+		data_bytes[11] = (uint8_t)((angles[2]) & 0xFF);       // the LSB
+
+		// Calculate CRC code
+		for (int j = 0; j < 12; j++) {
+			crc = crc ^ (data_bytes[j] + 1 + j);
 		}
-		data[4] = crc;
+		data_bytes[12] = crc;
 
-		sprintf(buffer, "%d, %d,%d,%d,%d,(crc=%d)\n", (int)s_y, data[0], data[1],
-				data[2], data[3], data[4]);
-		HAL_UART_Transmit(&huart3, (uint8_t*) buffer, strlen(buffer), 5000);
-		HAL_UART_Transmit(&huart6, (uint8_t*) data, 5, 5000);
-		*/
+		sprintf(buffer, "[%d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d,] (%d) \n",
+				data_bytes[0], data_bytes[1], data_bytes[2], data_bytes[3],
+				data_bytes[4], data_bytes[5], data_bytes[6], data_bytes[7],
+				data_bytes[8], data_bytes[9], data_bytes[10], data_bytes[11],
+				data_bytes[12]);
+
+		HAL_UART_Transmit(&huart3, (uint8_t*) buffer, strlen(buffer), 5000); // send data to PC
+		HAL_UART_Transmit(&huart6, (uint8_t*) data_bytes, 13, 5000); // Send data to DSpace via RS232/RS485
+
 		HAL_GPIO_TogglePin(LD3_GPIO_Port, LD3_Pin);
-		HAL_Delay(1500);
+		HAL_Delay(1000); // ms
 	}
   /* USER CODE END 3 */
 

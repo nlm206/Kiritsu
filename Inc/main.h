@@ -126,6 +126,8 @@
 #define MAX_VALUE_20_BIT 				(uint32_t)1048576
 #define MAX_VALUE_21_BIT 				(uint32_t)2097152
 
+#define USING_VIRTUAL_ANGLES
+
 #define Byte_Extract(num) \
 	((num&0x80)?1:0),\
 	((num&0x40)?1:0),\
