@@ -58,7 +58,7 @@ UART_HandleTypeDef huart6;
 /* USER CODE BEGIN PV */
 /* Private variables ---------------------------------------------------------*/
 static char buffer[1024];
-
+uint8_t crc_table[256];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -74,6 +74,9 @@ static void MX_SPI5_Init(void);
 /* Private function prototypes -----------------------------------------------*/
 uint32_t Read_SSI_Pinout(uint8_t channel, int numBits);
 uint32_t Read_SSI_SPIx(SPI_HandleTypeDef *hspi);
+
+void Generate_CRCTable();
+uint8_t CRCChecksum(uint8_t *data, uint8_t data_len);
 /* USER CODE END PFP */
 
 /* USER CODE BEGIN 0 */
@@ -84,7 +87,13 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
-
+	const uint32_t scale = 1000;
+	const double raw_data_2_deg = scale * 360.0 / MAX_VALUE_19_BIT;
+	uint32_t angles[3] = { 0 };
+	uint32_t values[3] = { 0 };
+	uint32_t data = 0, value = 0, angle = 0;
+	uint8_t crc = 124;
+	uint8_t data_bytes[13] = { 69, 37, 4, 6, 12, 41, 55, 21, 32, 21, 51, 29, 16 };
   /* USER CODE END 1 */
 
   /* MCU Configuration----------------------------------------------------------*/
@@ -112,14 +121,16 @@ int main(void)
   MX_SPI5_Init();
 
   /* USER CODE BEGIN 2 */
-  HAL_GPIO_WritePin(Enc_Reset_1_GPIO_Port, Enc_Reset_1_Pin, GPIO_PIN_SET);
-  HAL_GPIO_WritePin(Enc_Reset_2_GPIO_Port, Enc_Reset_2_Pin, GPIO_PIN_SET);
-  HAL_GPIO_WritePin(Enc_Reset_3_GPIO_Port, Enc_Reset_3_Pin, GPIO_PIN_SET);
-  HAL_Delay(10); // ms
-  HAL_GPIO_WritePin(Enc_Reset_1_GPIO_Port, Enc_Reset_1_Pin, GPIO_PIN_RESET);
-  HAL_GPIO_WritePin(Enc_Reset_2_GPIO_Port, Enc_Reset_2_Pin, GPIO_PIN_RESET);
-  HAL_GPIO_WritePin(Enc_Reset_3_GPIO_Port, Enc_Reset_3_Pin, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(Enc_Reset_1_GPIO_Port, Enc_Reset_1_Pin, GPIO_PIN_SET);
+	HAL_GPIO_WritePin(Enc_Reset_2_GPIO_Port, Enc_Reset_2_Pin, GPIO_PIN_SET);
+	HAL_GPIO_WritePin(Enc_Reset_3_GPIO_Port, Enc_Reset_3_Pin, GPIO_PIN_SET);
+	HAL_Delay(10); // ms
+	HAL_GPIO_WritePin(Enc_Reset_1_GPIO_Port, Enc_Reset_1_Pin, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(Enc_Reset_2_GPIO_Port, Enc_Reset_2_Pin, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(Enc_Reset_3_GPIO_Port, Enc_Reset_3_Pin, GPIO_PIN_RESET);
 
+	// Generate CRC Checksum Table
+	Generate_CRCTable();
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -128,46 +139,34 @@ int main(void)
   /* USER CODE END WHILE */
 
   /* USER CODE BEGIN 3 */
-		const uint32_t scale = 1000;
-		const double raw_data_2_deg = scale * 360.0 / MAX_VALUE_19_BIT;
-
-	    uint32_t angles[3] = {0};
-
 #ifndef USING_VIRTUAL_ANGLES
-	    uint32_t values[3] = {0};
-	    uint32_t data = 0, value = 0, angle = 0;
-		data = Read_SSI_SPIx(&hspi3);                           // read data from encoder
-		value = data & (uint32_t)0x007FFFF0;                    // decode the data
-		value = value / 16;                                     // last bit is ERROR bit, value >>= 4
-		angle = (uint32_t)(value * raw_data_2_deg);             // angle in deg, \sa scale
-		angles[1] = angle;                                      // store to array
-		values[1] = value;                                      // store to array
+		data = Read_SSI_SPIx(&hspi3);                      // read data from encoder
+		value = data & (uint32_t)0x007FFFF0;// decode the data
+		value = value / 16;// last bit is ERROR bit, value >>= 4
+		angle = (uint32_t)(value * raw_data_2_deg);// angle in deg, \sa scale
+		angles[1] = angle;// store to array
+		values[1] = value;// store to array
 
 		data = Read_SSI_SPIx(&hspi4);
 		value = data & (uint32_t)0x007FFFF0;
-		value = value / 16;                                     // last bit is ERROR bit, value >>= 4
+		value = value / 16;// last bit is ERROR bit, value >>= 4
 		angle = (uint32_t)(value * raw_data_2_deg);
 		angles[0] = angle;
 		values[0] = value;
 
 		data = Read_SSI_SPIx(&hspi5);
 		value = data & (uint32_t)0x007FFFF0;
-		value = value / 16;                                     // last bit is ERROR bit, value >>= 4
+		value = value / 16;// last bit is ERROR bit, value >>= 4
 		angle = (uint32_t)(value * raw_data_2_deg);
 		angles[2] = angle;
 		values[2] = value;
 #else
-		angles[0] = (uint32_t)(10.5 * scale);
-		angles[1] = (uint32_t)(142.9 * scale);
-		angles[2] = (uint32_t)(256.7 * scale);
+		static int ii = 0;
+		angles[0] = (uint32_t)(10.5 * sin (ii * 3.14) * scale);
+		angles[1] = (uint32_t)(142.9 * cos (ii * 3) * scale);
+		angles[2] = (uint32_t)(256.7 * sin (ii * 2.14 + 1.5) * scale);
+		ii++;
 #endif
-
-		sprintf(buffer, "{%ld, %ld, %ld}(deg)\n", angles[0], angles[1], angles[2]);
-		HAL_UART_Transmit(&huart3, (uint8_t *) buffer, strlen(buffer), 5000); // send data to PC
-
-		uint8_t crc = 124;
-		uint8_t	data_bytes[13] = {69, 37, 4, 6, 12, 41, 55, 21, 32, 21, 51, 29, 16};
-
 		// Encoding first data
 		data_bytes[0] = (uint8_t)((angles[0] >> 24) & 0xFF); // the MSB
 		data_bytes[1] = (uint8_t)((angles[0] >> 16) & 0xFF);
@@ -187,18 +186,19 @@ int main(void)
 		data_bytes[11] = (uint8_t)((angles[2]) & 0xFF);       // the LSB
 
 		// Calculate CRC code
-		for (int j = 0; j < 12; j++) {
-			crc = crc ^ (data_bytes[j] + 1 + j);
-		}
+		crc = CRCChecksum(data_bytes, 12);
 		data_bytes[12] = crc;
 
-		sprintf(buffer, "[%d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d,] (%d) \n",
+		sprintf(buffer, "{%ld, %ld, %ld}(deg), (CRC=%d)\n", angles[0], angles[1], angles[2], crc);
+		HAL_UART_Transmit(&huart3, (uint8_t *) buffer, strlen(buffer), 5000); // send data to PC
+
+		/*sprintf(buffer, "[%d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d] (%d) \n",
 				data_bytes[0], data_bytes[1], data_bytes[2], data_bytes[3],
 				data_bytes[4], data_bytes[5], data_bytes[6], data_bytes[7],
 				data_bytes[8], data_bytes[9], data_bytes[10], data_bytes[11],
 				data_bytes[12]);
 
-		HAL_UART_Transmit(&huart3, (uint8_t*) buffer, strlen(buffer), 5000); // send data to PC
+		HAL_UART_Transmit(&huart3, (uint8_t*) buffer, strlen(buffer), 5000); // send data to PC*/
 		HAL_UART_Transmit(&huart6, (uint8_t*) data_bytes, 13, 5000); // Send data to DSpace via RS232/RS485
 
 		HAL_GPIO_TogglePin(LD3_GPIO_Port, LD3_Pin);
@@ -590,6 +590,39 @@ uint32_t Read_SSI_SPIx(SPI_HandleTypeDef *hspi) {
 	}
 	return data1;
 }
+
+// Generate CRC Checksum Table
+void Generate_CRCTable() {
+	const uint8_t generator = 0x1D;
+	uint8_t currentByte;
+	for (int divident = 0; divident < 256; divident++) {
+		currentByte = (uint8_t) divident;
+		// calculate the CRC-8 value for current byte
+		for (uint8_t bit = 0; bit < 8; bit++) {
+			if ((currentByte & 0x80) != 0) {
+				currentByte <<= 1;
+				currentByte ^= generator;
+			}
+			else {
+				currentByte <<= 1;
+			}
+		}
+		// store CRC value in lookup table
+		crc_table[divident] = currentByte;
+	}
+	crc_table[0] = 1;
+}
+
+uint8_t CRCChecksum(uint8_t *data, uint8_t data_len){
+	uint8_t crc = 0xAB, tmp;
+	for (int i = 0; i < data_len; i++) {
+		tmp = data[i] ^ crc;
+		crc = crc_table[tmp];
+	}
+
+	return crc;
+}
+
 /* USER CODE END 4 */
 
 /**
