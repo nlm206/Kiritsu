@@ -124,11 +124,11 @@ void Error_Handler(void);
 #define Enc_Reset_3_Pin GPIO_PIN_9
 #define Enc_Reset_3_GPIO_Port GPIOB
 /* USER CODE BEGIN Private defines */
-#define MAX_VALUE_12_BIT 				(uint16_t)4096
-#define MAX_VALUE_18_BIT 				(uint32_t)262144
-#define MAX_VALUE_19_BIT 				(uint32_t)524288
-#define MAX_VALUE_20_BIT 				(uint32_t)1048576
-#define MAX_VALUE_21_BIT 				(uint32_t)2097152
+#define MAX_VALUE_12_BIT 				(uint16_t)0x0FFF
+#define MAX_VALUE_18_BIT 				(uint32_t)0x0003FFFF
+#define MAX_VALUE_19_BIT 				(uint32_t)0x0007FFFF
+#define MAX_VALUE_20_BIT 				(uint32_t)0x000FFFFF
+#define MAX_VALUE_21_BIT 				(uint32_t)0x001FFFFF
 
 #define Byte_Extract(num) \
 	((num&0x80)?1:0),\
